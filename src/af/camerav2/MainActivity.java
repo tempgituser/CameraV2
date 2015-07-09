@@ -14,6 +14,7 @@ import java.util.*;
 import android.hardware.camera2.params.*;
 import java.nio.*;
 import java.io.*;
+import java.lang.Process;
 import android.content.res.*;
 
 public class MainActivity extends Activity implements View.OnClickListener
@@ -67,6 +68,7 @@ public class MainActivity extends Activity implements View.OnClickListener
 		{
 			cameraDevice.close();
 			MainActivity.this.cameraDevice = null;
+			isShutting = false;
 		}
 		@Override
 		public void onError(CameraDevice cameraDevice, int error)
@@ -75,15 +77,26 @@ public class MainActivity extends Activity implements View.OnClickListener
 			MainActivity.this.cameraDevice = null;
 			Toast t = Toast.makeText(MainActivity.this, "errorCode:" + error, 1);
 			t.show();
+			isShutting = false;
 			MainActivity.this.finish();
 		}
 	};
 
+	public boolean isShutting = false;
     @Override
     public void onCreate(Bundle savedInstanceState)
 	{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+		
+		
+		//WindowManager.LayoutParams lp = this.getWindow().getAttributes();
+		////0到1,调整亮度暗到全亮
+		//lp.screenBrightness = Float.valueOf(0/255f); 
+		//this.getWindow().setAttributes(lp);
+		execShellCmdRoot("echo 0 > /sys/class/leds/lcd-backlight/brightness");
+
+		//showWhiteView();
 
 		//Camera
 		//textureView = (AutoFitTextureView)findViewById(R.id.texture);
@@ -101,26 +114,76 @@ public class MainActivity extends Activity implements View.OnClickListener
 
 		//h.sendEmptyMessageDelayed(0,3000);
     }
+	
+	boolean isDebug = false;
+	Toast keyToast;
+	public void showToast(String s){
+		if(!isDebug){return;}
+		if (keyToast != null){
+			keyToast.cancel();
+		}
+		keyToast = Toast.makeText(MainActivity.this,s,Toast.LENGTH_SHORT);
+		keyToast.show();
+	}
 
 	@Override
 	public boolean dispatchKeyEvent(KeyEvent event)
 	{
 		
 		if(event.getAction() == KeyEvent.ACTION_DOWN && event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN){
-			//Toast.makeText(this,"downnnnnnnnnnnnnnnnnn",Toast.LENGTH_LONG).show();
+			showToast("dispatch");
 			vib(50);
-			
+			captureStillPicture();
+			return true;
 		}
 		
 		// TODO: Implement this method
 		return super.dispatchKeyEvent(event);
+	}
+
+	@Override
+	public boolean onKeyDown(int keyCode, KeyEvent event)
+	{
+		if(event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN){
+			showToast("keydown");//vib(50);
+			return true;
+		}
+		return super.onKeyDown(keyCode, event);
+	}
+
+	@Override
+	public boolean onKeyUp(int keyCode, KeyEvent event)
+	{
+		if(event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN){
+			showToast("keyup");
+			//vib(50);
+			return true;
+
+		}
+		
+		// TODO: Implement this method
+		return super.onKeyUp(keyCode, event);
+	}
+
+	@Override
+	public boolean onTouchEvent(MotionEvent event)
+	{
+		return false;
 	} 
+	
 	
 	@Override
 	protected void onDestroy()
 	{
+
+		showWhiteView();
+		
 		// TODO: Implement this method
 		super.onDestroy();
+		if(cameraDevice != null){
+			cameraDevice.close();
+			MainActivity.this.cameraDevice = null;
+		}
 		this.finish();
 		System.exit(0);
 	}
@@ -130,8 +193,17 @@ public class MainActivity extends Activity implements View.OnClickListener
 	{
 		textureView = (AutoFitTextureView)findViewById(R.id.texture);
 		textureView.setSurfaceTextureListener(null);
+		if(cameraDevice != null){
+			MainActivity.this.cameraDevice = null;
+			cameraDevice.close();
+		}
 		// TODO: Implement this method
+
+		showWhiteView();
 		super.onStop();
+
+		this.finish();
+		System.exit(0);
 	}
 
 	@Override
@@ -159,12 +231,24 @@ public class MainActivity extends Activity implements View.OnClickListener
 		textureView = (AutoFitTextureView)findViewById(R.id.texture);
 		textureView.setSurfaceTextureListener(null);
 		
+		if(cameraDevice != null){
+			cameraDevice.close();
+			MainActivity.this.cameraDevice = null;
+		}
 
 		CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
 		
+		showWhiteView();
 		super.onPause();
 
+		this.finish();
+		System.exit(0);
 		
+	}
+	
+	public void showWhiteView(){
+		findViewById(R.id.texture).setVisibility(View.GONE);
+		findViewById(R.id.white).setVisibility(View.VISIBLE);
 	}
 	
 	@Override
@@ -175,17 +259,26 @@ public class MainActivity extends Activity implements View.OnClickListener
 
 	private void captureStillPicture()
 	{
+		if(isShutting){
+			return;
+		}
+		isShutting = true;
 		try
 		{
 			if (cameraDevice == null)
 			{
 				Toast.makeText(MainActivity.this, "mCamera == null!", Toast.LENGTH_SHORT).show();
+				isShutting = false;
 				return;
 			}
+			
+			try{Thread.sleep(1000);}
+			catch(Exception e){}
+			
 			final CaptureRequest.Builder captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
 			captureRequestBuilder.addTarget(imageReader.getSurface());
 			captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);//set to auto focus mode
-			captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+			captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
 			int rotation = getWindowManager().getDefaultDisplay().getRotation();
 			captureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
 			captureSession.stopRepeating();
@@ -197,7 +290,7 @@ public class MainActivity extends Activity implements View.OnClickListener
 						try
 						{
 							previewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
-							previewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+							previewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_ON);
 							captureSession.setRepeatingRequest(previewRequest, null, null);
 
 						}
@@ -249,7 +342,7 @@ public class MainActivity extends Activity implements View.OnClickListener
 					captureSession = cameraCaptureSession;
 					try{
 						previewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-						previewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+						previewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
 						previewRequest = previewRequestBuilder.build();
 						captureSession.setRepeatingRequest(previewRequest, null, null);
 					}catch(CameraAccessException e){
@@ -292,7 +385,9 @@ public class MainActivity extends Activity implements View.OnClickListener
 						FileOutputStream output = new FileOutputStream(file);
 						Toast.makeText(MainActivity.this, "Saved:"+file, Toast.LENGTH_SHORT).show();
 						output.write(bytes);
-						vib(100);
+						vib(50);
+
+						isShutting = false;
 					}catch(Exception ex){
 						
 					}finally{
@@ -338,6 +433,58 @@ public class MainActivity extends Activity implements View.OnClickListener
 		vibrator.vibrate(millsec);
 	}
 	
+	
+	
+	
+	
+	
+	private void execShellCmdRoot(String cmd) {
+		try {
+			Process process = Runtime.getRuntime().exec("su");
+			// ��ȡ�����
+			OutputStream outputStream = process.getOutputStream();
+			DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+			dataOutputStream.writeBytes(cmd);
+			dataOutputStream.flush();
+			dataOutputStream.close();
+			outputStream.close();
+		} catch (Throwable t) {
+			t.printStackTrace();
+		}
+	}
+	@SuppressWarnings("unused")
+	private void execShellCmd(String cmd) {
+		try {
+			Process process = Runtime.getRuntime().exec("");
+			// ��ȡ�����
+			OutputStream outputStream = process.getOutputStream();
+			DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+			dataOutputStream.writeBytes(cmd);
+			dataOutputStream.flush();
+			dataOutputStream.close();
+			outputStream.close();
+		} catch (Throwable t) {
+			t.printStackTrace();
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void execShellCmds(String[] cmds) {
+		try {
+			Process process = Runtime.getRuntime().exec("su");
+			// ��ȡ�����
+			OutputStream outputStream = process.getOutputStream();
+			DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+			for (String s : cmds) {
+				dataOutputStream.writeBytes(s);
+			}
+			dataOutputStream.flush();
+			dataOutputStream.close();
+			outputStream.close();
+		} catch (Throwable t) {
+			t.printStackTrace();
+		}
+	}
 	
 	
 	
