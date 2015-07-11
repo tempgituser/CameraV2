@@ -38,7 +38,10 @@ public class MainActivity extends Activity implements View.OnClickListener
 		@Override
 		public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height)
 		{
-			openCamera(width, height);
+			//width=720;
+			//height=1080;
+			showToast(""+width+","+height);
+			openCamera(1080, 1920);
 		}
 		@Override
 		public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height)
@@ -94,7 +97,7 @@ public class MainActivity extends Activity implements View.OnClickListener
 		////0到1,调整亮度暗到全亮
 		//lp.screenBrightness = Float.valueOf(0/255f); 
 		//this.getWindow().setAttributes(lp);
-		execShellCmdRoot("echo 0 > /sys/class/leds/lcd-backlight/brightness");
+		//execShellCmdRoot("echo 0 > /sys/class/leds/lcd-backlight/brightness");
 
 		//showWhiteView();
 
@@ -115,12 +118,12 @@ public class MainActivity extends Activity implements View.OnClickListener
 		//h.sendEmptyMessageDelayed(0,3000);
     }
 	
-	boolean isDebug = false;
+	boolean isDebug = true;
 	Toast keyToast;
 	public void showToast(String s){
 		if(!isDebug){return;}
 		if (keyToast != null){
-			keyToast.cancel();
+			//keyToast.cancel();
 		}
 		keyToast = Toast.makeText(MainActivity.this,s,Toast.LENGTH_SHORT);
 		keyToast.show();
@@ -272,7 +275,7 @@ public class MainActivity extends Activity implements View.OnClickListener
 				return;
 			}
 			
-			try{Thread.sleep(1000);}
+			try{Thread.sleep(2000);}
 			catch(Exception e){}
 			
 			final CaptureRequest.Builder captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
@@ -370,6 +373,8 @@ public class MainActivity extends Activity implements View.OnClickListener
 			StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
 			
 			Size largest = Collections.max(Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),new CompareSizesByArea());
+			showToast("largestWidth:"+largest.getWidth()+"  largestHeight:"+largest.getHeight());
+			
 			imageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),ImageFormat.JPEG, 2);
 			imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener(){
 				@Override
@@ -378,6 +383,21 @@ public class MainActivity extends Activity implements View.OnClickListener
 					ByteBuffer buffer = image.getPlanes()[0].getBuffer();
 					byte[] bytes = new byte[buffer.remaining()];
 					Date date = new Date();
+					
+					
+					
+					File noMedia = new File(getExternalFilesDir(null),".nomedia");
+					if(!noMedia.exists()){
+						try
+						{
+							noMedia.createNewFile();
+						}
+						catch (IOException e)
+						{
+							e.printStackTrace();
+						}
+					}
+					
 					
 					File file = new File(getExternalFilesDir(null),"pic"+date.getTime()+".jpg");
 					buffer.get(bytes);
@@ -411,18 +431,27 @@ public class MainActivity extends Activity implements View.OnClickListener
 		}
 	}
 	
-	private static Size chooseOptimalSize(Size[] choices, int width, int height, Size aspectRatio){
+	private Size chooseOptimalSize(Size[] choices, int width, int height, Size aspectRatio){
+		
+		//width=720;
+		//ight=1280;
 		List<Size>bigEnough = new ArrayList<>();
 		int w = aspectRatio.getWidth();
 		int h = aspectRatio.getHeight();
 		for(Size option:choices){
+			
 			if(option.getHeight()==option.getWidth()*h/w && option.getWidth() >= width && option.getHeight() >= height){
 				bigEnough.add(option);
 			}
 		}
 		if(bigEnough.size() > 0){
+
+			Size good = Collections.min(bigEnough, new CompareSizesByArea());
+			showToast("chosenWidth:"+good.getWidth()+"  chosezHeight:"+good.getHeight());
+			
 			return Collections.min(bigEnough, new CompareSizesByArea());
 		}else{
+			showToast("can't find fit previewSize!");
 			System.out.println("can't find fit previewSize!");
 			return choices[0];
 		}
