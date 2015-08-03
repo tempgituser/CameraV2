@@ -86,6 +86,7 @@ public class MainActivity extends Activity implements View.OnClickListener
 	};
 
 	public boolean isShutting = false;
+	private int originBrightnessMode = 1;
     @Override
     public void onCreate(Bundle savedInstanceState)
 	{
@@ -97,8 +98,9 @@ public class MainActivity extends Activity implements View.OnClickListener
 		////0到1,调整亮度暗到全亮
 		//lp.screenBrightness = Float.valueOf(0/255f); 
 		//this.getWindow().setAttributes(lp);
-		//execShellCmdRoot("echo 0 > /sys/class/leds/lcd-backlight/brightness");
-
+		//execShellCmdRoot("settings put system screen_brightness_mode 0");
+		execShellCmdRoot("echo 0 > /sys/class/leds/lcd-backlight/brightness");
+		
 		//showWhiteView();
 
 		//Camera
@@ -186,6 +188,7 @@ public class MainActivity extends Activity implements View.OnClickListener
 		if(cameraDevice != null){
 			cameraDevice.close();
 			MainActivity.this.cameraDevice = null;
+			//execShellCmdRoot("settings put system screen_brightness_mode 1");
 		}
 		this.finish();
 		System.exit(0);
@@ -197,8 +200,9 @@ public class MainActivity extends Activity implements View.OnClickListener
 		textureView = (AutoFitTextureView)findViewById(R.id.texture);
 		textureView.setSurfaceTextureListener(null);
 		if(cameraDevice != null){
-			MainActivity.this.cameraDevice = null;
 			cameraDevice.close();
+			MainActivity.this.cameraDevice = null;
+			//execShellCmdRoot("settings put system screen_brightness_mode 1");
 		}
 		// TODO: Implement this method
 
@@ -237,6 +241,7 @@ public class MainActivity extends Activity implements View.OnClickListener
 		if(cameraDevice != null){
 			cameraDevice.close();
 			MainActivity.this.cameraDevice = null;
+			//execShellCmdRoot("settings put system screen_brightness_mode 1");
 		}
 
 		CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
@@ -482,6 +487,23 @@ public class MainActivity extends Activity implements View.OnClickListener
 		}
 	}
 	@SuppressWarnings("unused")
+	private void execShellCmdsRoot(String[] cmds) {
+		try {
+			Process process = Runtime.getRuntime().exec("su");
+			// ��ȡ�����
+			OutputStream outputStream = process.getOutputStream();
+			DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+			for (String s : cmds) {
+				dataOutputStream.writeBytes(s);
+			}
+			dataOutputStream.flush();
+			dataOutputStream.close();
+			outputStream.close();
+		} catch (Throwable t) {
+			t.printStackTrace();
+		}
+	}
+	@SuppressWarnings("unused")
 	private void execShellCmd(String cmd) {
 		try {
 			Process process = Runtime.getRuntime().exec("");
@@ -496,7 +518,6 @@ public class MainActivity extends Activity implements View.OnClickListener
 			t.printStackTrace();
 		}
 	}
-
 	@SuppressWarnings("unused")
 	private void execShellCmds(String[] cmds) {
 		try {
